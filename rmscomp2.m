@@ -1,4 +1,4 @@
-function [maxg,baz,record] = rmscomp2(CMT,pmsec,f1,f2)
+function [maxg,baz,evdist,evdep,SNR,msamp,record] = rmscomp2(CMT,mag,pmsec,f1,f2)
 %rmscomp2 This function takes cuts and rotates x and y components of a
 %     seismogram around the predicted P-wave arrival time to maximize energy on
 %     the radial seismogram component. Specifically, this function calls cut2p to  
@@ -33,21 +33,34 @@ function [maxg,baz,record] = rmscomp2(CMT,pmsec,f1,f2)
 %   otherwise
 % Written by Anna van Brummen 03/05/2017
 
+%C201703152219A 5.7
+
 %Define default values for inputs
-defval('CMT','C201606261117A')
+defval('CMT','C201703152219A')
 defval('pmsec',30)
 defval('f1',1)
 defval('f2',2)
+defval('mag',NaN)
 %Break up the CMT code into date variables of the event
-yyyy = str2num(CMT(2:5));
-mo = str2num(CMT(6:7));
-dd = str2num(CMT(8:9));
-hh = str2num(CMT(10:11));
-mm = str2num(CMT(12:13));
+if ischar(CMT) == 1
+    yyyy = CMT(2:5);
+    mo = CMT(6:7);
+    dd = CMT(8:9);
+    hh = CMT(10:11);
+    mm = CMT(12:13);
+else
+    yyyy = CMT{1}(2:5);
+    mo = CMT{1}(6:7);
+    dd = CMT{1}(8:9);
+    hh = CMT{1}(10:11);
+    mm = CMT{1}(12:13);
+    CMT = num2str(CMT{1});
+end
 
 %Run cut2p
-[vx,vy,vxf,vyf,evdep,evlat,evlong,baz,time,ptime,noisevecx,noisevecy,seismogram,seismot] = cut2p(CMT,pmsec,f1,f2);
+[vx,vy,vxf,vyf,evdep,evlat,evlong,baz,evdist,time,ptime,noisevecx,noisevecy,seismogram,seismot] = cut2p(CMT,pmsec,f1,f2);
 
+evdistd = evdist/111; %(change km into degrees)
 %Rotate the x and y components into the direction of the backazimuth to get
 %the radial (from y) and transverse (from x) components
 [vxrbaz,vyrbaz] = rotatevec(vxf,vyf,baz,0,0);
@@ -68,7 +81,7 @@ end
 %(maxms), and the rotated seismograms by maxg on top of baz
 [vxr,vyr,maxg,maxms,msxy,gamav] = rotatevec(vxrbaz,vyrbaz,90,0.5,0);
 
-
+msamp = max(msxy) - min(msxy);
 %Calculate Signal to Noise Ratio on the radial direction where P-wave energy
 %should be maximized
 S = var(vyrbaz);
@@ -116,38 +129,47 @@ p(4)=plot(time,vyr,'Color',[0.5 0 0]);
 
 %Plot the maxms values versus angle, indicate which had the best fit
 a(5)=subplot(4,2,5);
-p(5)=plot(-gamav*(180/pi),msxy,'Color',[0 0.75 0.75]);
+p(5)=plot(gamav*(180/pi),msxy,'Color',[0 0.75 0.75]);
 hold all;
 scatter(maxg,maxms,'MarkerFaceColor','g','MarkerEdgeColor','g')
-legend('mean squared values','minimum ms value','Location','Best')
+legend('mean squared values','maximum ms value','Location','Best')
 t(5)=title('Angle of rotation vs. Mean squared values');
 xlabel('Degrees rotated')
-ylabel('(x^2-y^2/x^2+y^2)')
+ylabel('(y^2-x^2/y^2+x^2)')
 
 %define a vector of colors to write the signal to noise ratio in - the
 %first color is if it's below the indicated threshold, the second is if
 %above
 color =[ 'r'; 'g'];
 
-%This is where you define the signal to noise threshold
+%This is where you define the signal to noise threshold and msamp threshold
 if SNR > 3
-colorind = 2;
+colorind1 = 2;
 else 
-colorind = 1;
+colorind1 = 1;
 end
 
+if msamp > 0.5
+colorind2 = 2;
+else 
+colorind2 = 1;
+end
 %Plot various event and rotation data
 hold all;
 a(6)=subplot(4,2,6);
 text(-0.35,1.2,'Event Information','FontSize',12,'Color','r')
-text(-1,0.85,sprintf('%2.2i/%2.2i/%4.0f at %2.2i:%2.2i',mo,dd,yyyy,hh,mm))
+text(-1,0.85,sprintf('%s/%s/%s at %s:%s',mo,dd,yyyy,hh,mm))
+text(.25,0.85,sprintf('Magnitude %1.1f',mag))
 text(-1,0.5,sprintf('Location %3.3f%c lat',evlat,char(176)))
 text(.25,0.5,sprintf('%3.3f%c long',evlong,char(176)))
 text(-1,0.15,sprintf('Depth %2.2f km',evdep))
 text(.25,0.15,sprintf('Backazimuth %2.2f%c',baz,char(176)))
 text(-1,-0.2,sprintf('Filter range %1.2f - %1.2f Hz',f1,f2 ))
-text(.25,-0.2,sprintf('Signal/Noise %2.2f',SNR),'Color',color(colorind))
-text(-0.55,-1.2,sprintf('%2.2f%c',maxg,char(176)),'FontSize',45,'Color',[0 0.75 0.75])
+text(.25,-0.2,sprintf('Distance %4.0f%c',evdistd,char(176)))
+text(-1,-0.55,sprintf('MSV amplitude %2.2f',msamp),'Color',color(colorind2))
+text(0.25,-0.55,sprintf('Signal/Noise %2.2f',SNR),'Color',color(colorind1))
+
+text(-0.55,-1.4,sprintf('%2.2f%c',maxg,char(176)),'FontSize',40,'Color',[0 0.75 0.75])
 axis([-1 1 -1 1])
 axis off
 
@@ -177,7 +199,7 @@ else
 end
 
 %Turn the color ind value of 1 or 2 into the output record value of 1 or 0
-if colorind == 2 
+if colorind1 == 2 && colorind2 ==2
     record = 1;
 else
     record = 0;
@@ -227,11 +249,10 @@ movev(a(6),-0.02)
 xlabh = get(gca,'XLabel');
 set(xlabh,'Position',get(xlabh,'Position')- [0 .2 0]);
 
-
 % Last-minute things
 delete(t(5))
 delete(t(3))
 delete(t(4))
-print('-dpdf',sprintf('/Users/abrummen/Documents/Event_PDFs2/%s',CMT))
+print('-dpdf',sprintf('/Users/abrummen/Documents/Event_PDFs_30/%s',CMT))
 
 end

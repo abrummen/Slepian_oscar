@@ -16,42 +16,32 @@ defval('interval',1);
 vx=vx(:);
 vy=vy(:);
 
+%rename to North and East components
+E = vx;
+N = vy;
 %convert gama into radians and account for direction (sign change - negative means )
-gamar = -gama*(pi/180);
+gamar = gama*(pi/180);
 
 %What is our degree interval 
-di = -interval*(pi/180);
+di = interval*(pi/180);
 
 if di == 0;
-% figure(5)
-% plot(vx,vy)
-% xlim([-5 5])
-% ylim([-5 5])
-% hold all;
 
-gamam =[cos(gamar) -sin(gamar); ...                                                                                     
-	   sin(gamar)  cos(gamar)];
-   
-   % Check 
-   gamam'-inv(gamam)
+gamam =[cos(gamar) sin(gamar); ...                                                                                     
+	   -sin(gamar)  cos(gamar)];
 
-   
-   
-newv=[gamam*[vx' ; vy']]';
-vxr = newv(:,1);
-vyr = newv(:,2);
+   %Only keeping this here to compare with correct answer
+newv=[gamam*[N' ; E']]';
+
+%I use y to represent radial and x for transverse
+vyr = cos(gamar) * N + sin(gamar) * E;
+vxr = -sin(gamar) * N + cos(gamar) * E;
+
 maxg = gama;
 maxms = 0 ;
 msxy = 0;
 gamav = gama;
 
-
- % Check
- 
-
-
-% plot(vxr,vyr)
-   
  else
  
 %Create a vector filled with all the gama values
@@ -66,33 +56,28 @@ vyp = nan(length(gamav),length(vy));
 
 for index=1:length(gamav)
     %Create the rotation matrix for each value of gama
-    gamam =[cos(gamav(index)) -sin(gamav(index)); ...
-        sin(gamav(index))  cos(gamav(index))];
+    gamam =[cos(gamav(index)) sin(gamav(index)); ...
+        -sin(gamav(index))  cos(gamav(index))];
     
     % newv is composed of both componenets that have been rotated by gama
-    newv=[gamam*[vx' ; vy']]';
+    newv=[gamam*[N' ; E']]';
     
     % the resulting rotated vectors divided into two separate variables
-    vxp(index,:) = newv(:,1);
-    vyp(index,:) = newv(:,2);
-    
-%     %ssx & ssy are the rotated components squared
-%     ssx=vxp(index,:)*vxp(index,:)';
-%     ssy=vyp(index,:)*vyp(index,:)';
-    
+    vyp(index,:) = cos(gamav(index)) * N + sin(gamav(index)) * E;
+    vxp(index,:) = -sin(gamav(index)) * N + cos(gamav(index)) * E;
+
     % the vector containing all the ms values
-    msxy(index) = (mean([vxp(index,:).^2 - vyp(index,:).^2])/mean([vxp(index,:).^2 + vyp(index,:).^2]));
-    
+    msxy(index) = (mean([vyp(index,:).^2 - vxp(index,:).^2])/mean([vyp(index,:).^2 + vxp(index,:).^2]));
     
 end
 
 % returns minms- the smallest of the absolute value of all the terms in msxy
 % and the index of that value
-[maxms,maxin]=min((msxy));
+[maxms,maxin]=max((msxy));
 
 %From the index return the value of gama in degrees, minus because we want
 %to report the value clockwise
-maxg=-(gamav(maxin))*(180/pi); 
+maxg=(gamav(maxin))*(180/pi); 
 vxr = vxp(maxin,:);
 vyr = vyp(maxin,:);
 
